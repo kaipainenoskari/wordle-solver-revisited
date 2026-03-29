@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Solver</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #121213;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      text-align: center;
+      padding: 18px;
+      border-bottom: 1px solid #3a3a3c;
+    }
+    header h1 { font-size: 1.5rem; letter-spacing: 3px; font-weight: 700; }
+    header p { color: #818384; font-size: 0.8rem; margin-top: 4px; }
+
+    .main {
+      display: flex;
+      gap: 24px;
+      padding: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    /* ── LEFT: guess grid ── */
+    .left-panel { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+
+    .grid { display: flex; flex-direction: column; gap: 5px; }
+    .row { display: flex; gap: 5px; }
+
+    .tile {
+      width: 56px; height: 56px;
+      border: 2px solid #3a3a3c;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; font-weight: 700; text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+      border-radius: 3px;
+    }
+    .tile.absent  { background: #3a3a3c; border-color: #3a3a3c; color: #fff; }
+    .tile.present { background: #b59f3b; border-color: #b59f3b; color: #fff; }
+    .tile.correct { background: #538d4e; border-color: #538d4e; color: #fff; }
+    .tile:hover { opacity: 0.85; }
+    .tile.active-row { border-color: #565758; }
+
+    .guess-input-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .guess-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .letter-input {
+      width: 52px; height: 52px;
+      background: #121213;
+      border: 2px solid #565758;
+      border-radius: 3px;
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+    }
+    .letter-input:focus { border-color: #999; }
+
+    .hint-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .hint-btn {
+      width: 52px; height: 28px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      transition: opacity 0.15s;
+    }
+    .hint-btn:hover { opacity: 0.8; }
+    .hint-btn.absent  { background: #3a3a3c; color: #fff; }
+    .hint-btn.present { background: #b59f3b; color: #fff; }
+    .hint-btn.correct { background: #538d4e; color: #fff; }
+    .hint-btn.selected { outline: 3px solid #fff; }
+
+    .controls { display: flex; gap: 8px; }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .btn-primary { background: #538d4e; color: #fff; }
+    .btn-secondary { background: #3a3a3c; color: #fff; }
+    .btn-danger { background: #b59f3b; color: #fff; }
+    .btn:hover { opacity: 0.85; }
+
+    /* ── RIGHT: solver panel ── */
+    .right-panel { display: flex; flex-direction: column; gap: 16px; min-width: 300px; max-width: 380px; }
+
+    .card {
+      background: #1a1a1b;
+      border: 1px solid #3a3a3c;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card h2 { font-size: 0.75rem; letter-spacing: 2px; color: #818384; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* Possibilities counter */
+    .possibilities-card { border-color: #538d4e33; }
+    .possibilities-display {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .possibilities-number {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1;
+      transition: color 0.3s;
+    }
+    .possibilities-label { color: #818384; font-size: 0.9rem; }
+
+    .possibilities-bar-wrap {
+      margin-top: 10px;
+      background: #3a3a3c;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .possibilities-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease, background 0.4s;
+    }
+
+    /* Best guess card */
+    .best-guess-card {}
+    .best-guess-word {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #b59f3b;
+      margin-bottom: 4px;
+    }
+    .best-guess-score {
+      font-size: 0.8rem;
+      color: #818384;
+      margin-bottom: 12px;
+    }
+    .reasoning {
+      font-size: 0.82rem;
+      color: #ccc;
+      line-height: 1.5;
+      border-left: 3px solid #538d4e;
+      padding-left: 10px;
+    }
+
+    /* Top guesses list */
+    .top-list { display: flex; flex-direction: column; gap: 6px; }
+    .top-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      background: #121213;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .top-item:hover { background: #2a2a2b; }
+    .top-item-rank { color: #818384; font-size: 0.75rem; width: 16px; }
+    .top-item-word {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 0.9rem;
+      flex: 1;
+    }
+    .top-item-bar-wrap { flex: 2; background: #3a3a3c; border-radius: 3px; height: 6px; overflow: hidden; }
+    .top-item-bar { height: 100%; background: #538d4e; border-radius: 3px; }
+    .top-item-score { font-size: 0.75rem; color: #818384; width: 36px; text-align: right; }
+
+    /* Possible words preview */
+    .possible-words {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .possible-word {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background: #3a3a3c;
+      padding: 3px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .possible-word:hover { background: #538d4e; }
+    .possible-words-more { font-size: 0.75rem; color: #818384; padding: 3px 7px; }
+
+    /* Status messages */
+    .status-msg {
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .status-win { background: #538d4e33; color: #538d4e; }
+    .status-lose { background: #b5443a33; color: #e05353; }
+    .status-info { background: #3a3a3c; color: #ccc; }
+
+    /* Keyboard */
+    .keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+    .kb-row { display: flex; gap: 4px; }
+    .key {
+      height: 38px;
+      min-width: 34px;
+      padding: 0 6px;
+      border: none;
+      border-radius: 4px;
+      background: #818384;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      text-transform: uppercase;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .key.wide { min-width: 52px; font-size: 0.65rem; }
+    .key.absent  { background: #3a3a3c; }
+    .key.present { background: #b59f3b; }
+    .key.correct { background: #538d4e; }
+
+    @media (max-width: 700px) {
+      .main { padding: 12px; gap: 16px; }
+      .right-panel { min-width: 0; width: 100%; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #3a3a3c; border-radius: 4px; }
+
+    .computing { color: #818384; font-style: italic; font-size: 0.8rem; }
+
+    .copy-hint { font-size: 0.7rem; color: #565758; text-align: center; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>WORDLE SOLVER</h1>
+  <p>Entropy-based analysis · Click a tile to cycle its color</p>
+</header>
+
+<div class="main">
+  <!-- LEFT: Input area -->
+  <div class="left-panel">
+    <div class="grid" id="grid"></div>
+
+    <div id="statusMsg"></div>
+
+    <div class="controls">
+      <button class="btn btn-primary" onclick="submitGuess()">Submit Guess</button>
+      <button class="btn btn-secondary" onclick="resetGame()">Reset</button>
+    </div>
+
+    <p class="copy-hint">Click any word in the top guesses to auto-fill it</p>
+
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <!-- RIGHT: Solver panel -->
+  <div class="right-panel">
+
+    <div class="card possibilities-card">
+      <h2>Remaining Possibilities</h2>
+      <div class="possibilities-display">
+        <div class="possibilities-number" id="possibilitiesNum">—</div>
+        <div class="possibilities-label">words</div>
+      </div>
+      <div class="possibilities-bar-wrap">
+        <div class="possibilities-bar" id="possibilitiesBar" style="width:100%;background:#538d4e"></div>
+      </div>
+    </div>
+
+    <div class="card best-guess-card" id="bestGuessCard">
+      <h2>Best Next Guess</h2>
+      <div class="best-guess-word" id="bestGuessWord">—</div>
+      <div class="best-guess-score" id="bestGuessScore"></div>
+      <div class="reasoning" id="bestGuessReason"></div>
+    </div>
+
+    <div class="card">
+      <h2>Top 10 Guesses</h2>
+      <div class="top-list" id="topList"></div>
+      <div class="computing" id="computing" style="display:none">Computing scores…</div>
+    </div>
+
+    <div class="card">
+      <h2>Possible Words (<span id="possibleWordsCount">—</span>)</h2>
+      <div class="possible-words" id="possibleWords"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// WORD LIST  (Wordle answer words)
+// ═══════════════════════════════════════════════════════════
+const WORDS = `cigar rebut sissy humph awash ferry gibes audit lunch began
+ahead beaten braid brand brave breathe brunt brutal cabin cacti camel canal
+carte cease chant chaos chasm cheek child china chips choir civil clamp cleft
+cling clung cobra combs copse coral corps couch cough could count coupe court
+cover crack craft cramp crave craze creak creek cress crimp crisp croak cross
+crowd crown crude cruel crust crypt cubic curry curse cycle cynic daddy daily
+daisy dance drape drawl dread drift drink drive droit drone drool droop drove
+drunk dryer dusky dusty dwarf dying eager early earth eight elder emcee emily
+empty enact endow enjoy epoch equal evade evict expel extol faint fairy false
+fancy fatal feast feral ferry fetch fever fewer fiber field finch flame flank
+flask flaunt flesh flick flier flock floor flora floss flout flown fluff fluid
+fluke flume flunk foamy folly force forge forte forum foyer frail frame frank
+fraud freak fresh froze fudge fully funky gamut gauze gawky gecko geode ghost
+giant girth gland gloat gloom gloss glove glyph gnash gnome golly gouge grace
+grade grain grape grasp graze greed greet grief gripe groan groin grope gross
+grout gruel gruff grunt guide guild guilt guise gulch gusto gypsy handy hardy
+harsh haste haven heart heave heavy hedge helix helix herbs heron hoard hoist
+holly homer honor howdy human hyena hyper idiom igloo inept inter intro ionic
+jaunt jelly jerky jewel joker joust judge juice jumbo kappa kayak kebab khaki
+knack knave kneel knelt knife knock knoll known koala kudos label lance lapse
+large laser latch later lava leaky lemon lemur liege linen liver llama loamy
+loath lodge logic loner loopy lousy lucid lumpy lunar lusty lyric macro magic
+major manor maple march marry marsh matte mayoral mayor mealy melee mercy messy
+mimic minor mirth misty moist moldy moody moron mossy motel mound mourn muddy
+muggy mulch mummy mushy myrrh mystic nanny nasal naval needy niece nifty nitro
+noble nodal noisy noted novel nymph occur olive onion onset optic ounce outdo
+ovoid oxide ozone paddy paint panda papal papaya parse party pasta pasty patch
+pause payee peace pearl pedal penal perky petty piano picky pilot pinch pipette
+pixel pixel pizza place plaid plain plait plank plant plasm plate plaza plead
+pleat plied plumb plume plunk plush poker polar polyp porky potty pouch poult
+pouty power prank prawn press price pride prime primo primp prism privy prize
+probe prong prude psalm pubic pudgy plumb pulpy purge pushy pygmy qualm query
+queue quiet quilt quirk quota quote rabbi rabid raced racer radar raft rally
+ramen ramp range rapid raspy ratty raunt ravel reach reap rebus rebut recur
+reedy regal renew repay repel rerun reuse revel rider ripen risen rivet roach
+roast robin rocky rodeo rogue roomy roost rouge rough rouse royal rugby ruler
+rummy rupee lusty rusty sadly salsa saner sandy savor scald scaly scamp scant
+scape scare scarf scary scone scoop scout scram scrap screw scrub seedy serve
+shack shade shaft shame shape shark shawl sheep sheer shelf shell shift shine
+shire shirt shock shore short shout shove shrub shrug shuck shunt shush siege
+sieve silky siren sixth sixty sixty sixty sixty sixty sized skate skied skill
+skimp skirt skull skunk slate slaty sleek sleet slept slick slide slime slimy
+sling slink slipknot slosh sloth slunk small smear smelt smile smirk smite
+smock smoky snack snaky snare snark sneer snide sniff snobbish snoop snort snout
+snowy snuck snuff soapy solar solid solve sorry south smack stack stage staid
+stain stale stalk stamp stand stank stash state stave stead steak steal steam
+steel steep steer stern stile still sting stink stint stirred stoic stolen stomp
+stony stood stork storm story stout stove sting stuck stump stung stunk stunt
+style suave suede suite sulky sunny super surge sushi swamp swear sweat sweep
+swift swill swirl swoop sword synod syrup tabby taffy taint tamed tangy taunt
+tawny teach teary tease teddy tepid terse theft those three threw throw thrum
+thud thump tiara tidal tiger tilde timed tipsy tonic topaz torso totem toxic
+tryst tulip tumor tunic tutor twang tweak tweed tweet twerp twill twist typed
+udder ulcer ultra umbra uncut unfed unfit union unite unity until unzip upset
+urban utter uvula vague valid vault vaunt vicar video vigor vigil viral virus
+vison vivid vixen vocal vodka voice voila vouch vowel wacky wager waltz waste
+watch water weary weave weedy weigh weird whack whale whelp whiff while whisk
+white whole whose widen windy witty world wormy wrath wreck wrist wrote wryly
+yearn yodel yokel young youth zippy`.split(/\s+/).filter(w => w.length === 5);
+
+// De-dup and normalize
+const WORD_LIST = [...new Set(WORDS.map(w => w.toLowerCase()))];
+const TOTAL = WORD_LIST.length;
+
+// ═══════════════════════════════════════════════════════════
+// SOLVER CORE
+// ═══════════════════════════════════════════════════════════
+
+// Score a guess against a target: returns 5-char string of 'c','p','a'
+// c=correct, p=present(wrong pos), a=absent
+function scoreGuess(guess, target) {
+  const result = ['a','a','a','a','a'];
+  const targetArr = target.split('');
+  const guessArr = guess.split('');
+  const used = [false,false,false,false,false];
+
+  // Pass 1: correct positions
+  for (let i = 0; i < 5; i++) {
+    if (guessArr[i] === targetArr[i]) {
+      result[i] = 'c';
+      used[i] = true;
+    }
+  }
+  // Pass 2: present but wrong position
+  for (let i = 0; i < 5; i++) {
+    if (result[i] === 'c') continue;
+    for (let j = 0; j < 5; j++) {
+      if (!used[j] && targetArr[j] === guessArr[i]) {
+        result[i] = 'p';
+        used[j] = true;
+        break;
+      }
+    }
+  }
+  return result.join('');
+}
+
+// Filter possible words given a guess + its result pattern
+function filterPossible(possible, guess, pattern) {
+  return possible.filter(word => scoreGuess(guess, word) === pattern);
+}
+
+// Compute expected remaining words for a candidate guess (lower = better)
+// Uses entropy: -sum(p*log2(p)) across partition buckets
+function computeEntropy(candidate, possible) {
+  const buckets = {};
+  for (const word of possible) {
+    const pat = scoreGuess(candidate, word);
+    buckets[pat] = (buckets[pat] || 0) + 1;
+  }
+  const n = possible.length;
+  let entropy = 0;
+  for (const count of Object.values(buckets)) {
+    const p = count / n;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+// Expected remaining words count after this guess
+function expectedRemaining(candidate, possible) {
+  const buckets = {};
+  for (const word of possible) {
+    const pat = scoreGuess(candidate, word);
+    buckets[pat] = (buckets[pat] || 0) + 1;
+  }
+  const n = possible.length;
+  let expected = 0;
+  for (const count of Object.values(buckets)) {
+    expected += (count / n) * count;
+  }
+  return expected;
+}
+
+// Rank candidate guesses
+// Returns array of {word, entropy, expectedRemaining, isPossible}
+function rankGuesses(possible, candidates, topN = 15) {
+  if (possible.length === 0) return [];
+  if (possible.length === 1) return [{ word: possible[0], entropy: 0, expectedRemaining: 1, isPossible: true }];
+
+  const scored = [];
+  for (const word of candidates) {
+    const entropy = computeEntropy(word, possible);
+    const expRem = expectedRemaining(word, possible);
+    scored.push({ word, entropy, expectedRemaining: expRem, isPossible: possible.includes(word) });
+  }
+
+  // Sort: higher entropy = better; among ties, prefer possible answers
+  scored.sort((a, b) => {
+    const diff = b.entropy - a.entropy;
+    if (Math.abs(diff) > 0.001) return diff;
+    return a.isPossible ? -1 : 1;
+  });
+
+  return scored.slice(0, topN);
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI STATE
+// ═══════════════════════════════════════════════════════════
+const MAX_GUESSES = 6;
+let guesses = [];       // [{word, pattern}]
+let currentRow = 0;
+let currentLetters = ['','','','',''];
+let currentHints = ['absent','absent','absent','absent','absent'];
+let possible = [...WORD_LIST];
+let keyStates = {};     // letter -> 'absent'|'present'|'correct'
+let gameOver = false;
+
+// ═══════════════════════════════════════════════════════════
+// DOM SETUP
+// ═══════════════════════════════════════════════════════════
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < MAX_GUESSES; r++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = `row-${r}`;
+    for (let c = 0; c < 5; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.id = `tile-${r}-${c}`;
+      if (r === currentRow) {
+        tile.classList.add('active-row');
+        tile.addEventListener('click', () => cycleTileHint(r, c));
+      }
+      row.appendChild(tile);
+    }
+    grid.appendChild(row);
+  }
+  renderCurrentRow();
+}
+
+function buildKeyboard() {
+  const rows = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['Enter','z','x','c','v','b','n','m','⌫']
+  ];
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  for (const row of rows) {
+    const kbRow = document.createElement('div');
+    kbRow.className = 'kb-row';
+    for (const key of row) {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (key.length > 1 ? ' wide' : '');
+      btn.textContent = key;
+      btn.id = `key-${key}`;
+      btn.addEventListener('click', () => handleKey(key));
+      const state = keyStates[key.toLowerCase()];
+      if (state) btn.classList.add(state);
+      kbRow.appendChild(btn);
+    }
+    kb.appendChild(kbRow);
+  }
+}
+
+function renderCurrentRow() {
+  for (let c = 0; c < 5; c++) {
+    const tile = document.getElementById(`tile-${currentRow}-${c}`);
+    if (!tile) continue;
+    tile.textContent = currentLetters[c].toUpperCase();
+    tile.className = 'tile active-row';
+    if (currentLetters[c]) tile.classList.add(currentHints[c]);
+  }
+}
+
+function renderPastRow(rowIndex) {
+  const { word, pattern } = guesses[rowIndex];
+  for (let c = 0; c < 5; c++) {
+    const tile = document.getElementById(`tile-${rowIndex}-${c}`);
+    tile.textContent = word[c].toUpperCase();
+    const cls = pattern[c] === 'c' ? 'correct' : pattern[c] === 'p' ? 'present' : 'absent';
+    tile.className = `tile ${cls}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INPUT HANDLING
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (gameOver) return;
+  if (e.key === 'Enter') { submitGuess(); return; }
+  if (e.key === 'Backspace') { handleKey('⌫'); return; }
+  if (/^[a-zA-Z]$/.test(e.key)) { handleKey(e.key.toLowerCase()); }
+});
+
+function handleKey(key) {
+  if (gameOver) return;
+  if (key === '⌫' || key === 'Backspace') {
+    for (let i = 4; i >= 0; i--) {
+      if (currentLetters[i]) { currentLetters[i] = ''; renderCurrentRow(); return; }
+    }
+    return;
+  }
+  if (key === 'Enter') { submitGuess(); return; }
+  for (let i = 0; i < 5; i++) {
+    if (!currentLetters[i]) {
+      currentLetters[i] = key.toLowerCase();
+      renderCurrentRow();
+      return;
+    }
+  }
+}
+
+function cycleTileHint(r, c) {
+  if (r !== currentRow || !currentLetters[c]) return;
+  const order = ['absent', 'present', 'correct'];
+  const idx = order.indexOf(currentHints[c]);
+  currentHints[c] = order[(idx + 1) % 3];
+  renderCurrentRow();
+}
+
+// ─── Hint buttons per column ───────────────────────────────
+// (rendered below the grid for current row)
+function buildHintButtons() {
+  // We integrate this inline into tile clicks instead of separate buttons
+  // Users click tiles to cycle: gray → yellow → green
+}
+
+// ═══════════════════════════════════════════════════════════
+// GAME LOGIC
+// ═══════════════════════════════════════════════════════════
+function submitGuess() {
+  if (gameOver) return;
+  const word = currentLetters.join('');
+  if (word.length < 5) {
+    showStatus('Type a 5-letter word first', 'info');
+    return;
+  }
+
+  const pattern = currentHints.map(h => h === 'correct' ? 'c' : h === 'present' ? 'p' : 'a').join('');
+
+  // Update keyboard state
+  for (let i = 0; i < 5; i++) {
+    const letter = word[i];
+    const cur = keyStates[letter];
+    const newState = currentHints[i];
+    const priority = { correct: 3, present: 2, absent: 1 };
+    if (!cur || priority[newState] > priority[cur]) {
+      keyStates[letter] = newState;
+    }
+  }
+
+  guesses.push({ word, pattern });
+  renderPastRow(currentRow);
+
+  // Filter possibilities
+  possible = filterPossible(possible, word, pattern);
+  currentRow++;
+  currentLetters = ['','','','',''];
+  currentHints = ['absent','absent','absent','absent','absent'];
+
+  buildKeyboard();
+  clearStatus();
+
+  const won = pattern === 'ccccc';
+  if (won) {
+    gameOver = true;
+    showStatus(`Solved in ${guesses.length}!`, 'win');
+    updateSolverPanel();
+    return;
+  }
+  if (currentRow >= MAX_GUESSES) {
+    gameOver = true;
+    showStatus(`Out of guesses! (${possible.length} word${possible.length !== 1 ? 's' : ''} remained)`, 'lose');
+    updateSolverPanel();
+    return;
+  }
+
+  buildGrid();
+  updateSolverPanel();
+}
+
+function resetGame() {
+  guesses = [];
+  currentRow = 0;
+  currentLetters = ['','','','',''];
+  currentHints = ['absent','absent','absent','absent','absent'];
+  possible = [...WORD_LIST];
+  keyStates = {};
+  gameOver = false;
+  buildGrid();
+  buildKeyboard();
+  clearStatus();
+  updateSolverPanel();
+}
+
+// ═══════════════════════════════════════════════════════════
+// SOLVER PANEL UPDATE
+// ═══════════════════════════════════════════════════════════
+function updateSolverPanel() {
+  const n = possible.length;
+
+  // Possibilities counter
+  const numEl = document.getElementById('possibilitiesNum');
+  numEl.textContent = n;
+  numEl.style.color = n > 100 ? '#e05353' : n > 20 ? '#b59f3b' : '#538d4e';
+
+  // Bar: fraction of total remaining
+  const bar = document.getElementById('possibilitiesBar');
+  const pct = Math.max(2, (n / TOTAL) * 100);
+  bar.style.width = pct + '%';
+  bar.style.background = n > 100 ? '#e05353' : n > 20 ? '#b59f3b' : '#538d4e';
+
+  // Possible words preview
+  const pwCount = document.getElementById('possibleWordsCount');
+  pwCount.textContent = n;
+  const pw = document.getElementById('possibleWords');
+  pw.innerHTML = '';
+  const preview = possible.slice(0, 60);
+  for (const w of preview) {
+    const el = document.createElement('span');
+    el.className = 'possible-word';
+    el.textContent = w;
+    el.title = 'Click to use this word';
+    el.addEventListener('click', () => fillWord(w));
+    pw.appendChild(el);
+  }
+  if (possible.length > 60) {
+    const more = document.createElement('span');
+    more.className = 'possible-words-more';
+    more.textContent = `+${possible.length - 60} more`;
+    pw.appendChild(more);
+  }
+
+  if (n === 0) {
+    document.getElementById('bestGuessWord').textContent = '—';
+    document.getElementById('bestGuessScore').textContent = '';
+    document.getElementById('bestGuessReason').textContent = 'No words match these constraints. Check your hints.';
+    document.getElementById('topList').innerHTML = '';
+    return;
+  }
+
+  if (gameOver) {
+    if (guesses.length > 0 && guesses[guesses.length-1].pattern === 'ccccc') {
+      document.getElementById('bestGuessWord').textContent = guesses[guesses.length-1].word.toUpperCase();
+      document.getElementById('bestGuessScore').textContent = 'Correct!';
+      document.getElementById('bestGuessReason').textContent = `Solved in ${guesses.length} guess${guesses.length!==1?'es':''}. The word was ${guesses[guesses.length-1].word.toUpperCase()}.`;
+    }
+    return;
+  }
+
+  // Show computing indicator
+  document.getElementById('computing').style.display = 'block';
+  document.getElementById('topList').innerHTML = '';
+
+  // Use setTimeout to let DOM update before heavy computation
+  setTimeout(() => {
+    // Choose candidates: if ≤50 possible, rank all; else use possible + common starters
+    let candidates;
+    if (n <= 200) {
+      candidates = [...WORD_LIST]; // rank all known words
+    } else {
+      // For large sets use just the possible words (faster)
+      candidates = possible;
+    }
+
+    const ranked = rankGuesses(possible, candidates, 10);
+    document.getElementById('computing').style.display = 'none';
+
+    if (ranked.length === 0) return;
+
+    const best = ranked[0];
+    const maxEntropy = Math.log2(n); // theoretical max
+
+    document.getElementById('bestGuessWord').textContent = best.word.toUpperCase();
+    document.getElementById('bestGuessScore').textContent =
+      `Entropy: ${best.entropy.toFixed(2)} bits · Avg remaining: ~${Math.round(best.expectedRemaining)} words`;
+
+    // Build reasoning
+    let reason = '';
+    if (n === 1) {
+      reason = `Only one word left: ${possible[0].toUpperCase()}. This is the answer!`;
+    } else if (n === 2) {
+      reason = `Two words remain: ${possible.map(w=>w.toUpperCase()).join(' or ')}. Either guess works — you'll solve it next turn.`;
+    } else {
+      const elimPct = Math.round((1 - best.expectedRemaining / n) * 100);
+      const isPoss = best.isPossible ? 'This word is also a possible answer' : 'This is not a possible answer itself';
+      reason = `With ${n} words remaining, "${best.word.toUpperCase()}" scores ${best.entropy.toFixed(2)} bits of entropy — the highest available.
+
+On average it cuts possibilities from ${n} down to ~${Math.round(best.expectedRemaining)}, eliminating ${elimPct}% of candidates per guess.
+
+${isPoss}. ${best.entropy >= maxEntropy * 0.9 ? 'Excellent — nearly optimal information.' : best.entropy >= maxEntropy * 0.7 ? 'Strong choice for this position.' : 'Best available, though the search space is fragmented.'}`;
+    }
+    document.getElementById('bestGuessReason').textContent = reason;
+
+    // Top list
+    const topList = document.getElementById('topList');
+    topList.innerHTML = '';
+    const maxE = ranked[0].entropy || 1;
+    for (let i = 0; i < ranked.length; i++) {
+      const item = ranked[i];
+      const div = document.createElement('div');
+      div.className = 'top-item';
+      div.title = `Avg remaining: ~${Math.round(item.expectedRemaining)} words | ${item.isPossible ? 'Possible answer' : 'Not in answer pool'}`;
+      div.innerHTML = `
+        <span class="top-item-rank">${i+1}</span>
+        <span class="top-item-word" style="color:${item.isPossible ? '#538d4e' : '#ccc'}">${item.word}</span>
+        <div class="top-item-bar-wrap">
+          <div class="top-item-bar" style="width:${(item.entropy/maxE*100).toFixed(1)}%"></div>
+        </div>
+        <span class="top-item-score">${item.entropy.toFixed(2)}</span>
+      `;
+      div.addEventListener('click', () => fillWord(item.word));
+      topList.appendChild(div);
+    }
+  }, 10);
+}
+
+function fillWord(word) {
+  if (gameOver) return;
+  currentLetters = word.split('').slice(0,5);
+  renderCurrentRow();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATUS MESSAGES
+// ═══════════════════════════════════════════════════════════
+function showStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = `status-msg status-${type}`;
+}
+function clearStatus() {
+  const el = document.getElementById('statusMsg');
+  el.textContent = '';
+  el.className = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+buildGrid();
+buildKeyboard();
+updateSolverPanel();
+</script>
+</body>
+</html>
